@@ -14,28 +14,11 @@ function SummaryCards({ cases }) {
   ];
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: "16px",
-        marginBottom: "28px",
-      }}
-    >
+    <div className="metric-grid">
       {cards.map((card) => (
-        <div
-          key={card.label}
-          style={{
-            backgroundColor: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "14px",
-            padding: "18px",
-          }}
-        >
-          <p style={{ color: "#6b7280", marginBottom: "8px", fontSize: "0.9rem" }}>
-            {card.label}
-          </p>
-          <h3 style={{ fontSize: "1.8rem" }}>{card.value}</h3>
+        <div key={card.label} className="premium-panel metric-card">
+          <p className="metric-label">{card.label}</p>
+          <h3 className="metric-value">{card.value}</h3>
         </div>
       ))}
     </div>

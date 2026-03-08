@@ -25,10 +25,13 @@ function CreateCaseForm({ onCaseCreated }) {
     setSubmitting(true);
 
     try {
+      const token = localStorage.getItem("caseflow_token");
+
       const response = await fetch("http://localhost:5001/cases", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...formData,
@@ -61,18 +64,13 @@ function CreateCaseForm({ onCaseCreated }) {
   };
 
   return (
-    <div
-      style={{
-        border: "1px solid #dcdcdc",
-        borderRadius: "12px",
-        padding: "20px",
-        backgroundColor: "#fff",
-        marginBottom: "32px",
-      }}
-    >
-      <h2 style={{ marginBottom: "16px" }}>Create Case</h2>
+    <div className="premium-panel form-card">
+      <div className="soft-label" style={{ marginBottom: 12 }}>
+        New Entry
+      </div>
+      <h2 style={{ margin: "0 0 18px", letterSpacing: "-0.04em" }}>Create Case</h2>
 
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
+      <form onSubmit={handleSubmit} className="form-grid">
         <input
           type="text"
           name="title"
@@ -80,7 +78,6 @@ function CreateCaseForm({ onCaseCreated }) {
           value={formData.title}
           onChange={handleChange}
           required
-          style={{ padding: "10px" }}
         />
 
         <textarea
@@ -89,53 +86,54 @@ function CreateCaseForm({ onCaseCreated }) {
           value={formData.description}
           onChange={handleChange}
           rows="4"
-          style={{ padding: "10px" }}
         />
 
-        <select
-          name="status"
-          value={formData.status}
-          onChange={handleChange}
-          style={{ padding: "10px" }}
-        >
-          <option value="New">New</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Awaiting Response">Awaiting Response</option>
-          <option value="Closed">Closed</option>
-        </select>
+        <div className="split-grid">
+          <select
+            name="status"
+            value={formData.status}
+            onChange={handleChange}
+          >
+            <option value="New">New</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Awaiting Response">Awaiting Response</option>
+            <option value="Closed">Closed</option>
+          </select>
 
-        <select
-          name="priority"
-          value={formData.priority}
-          onChange={handleChange}
-          style={{ padding: "10px" }}
-        >
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-          <option value="Urgent">Urgent</option>
-        </select>
+          <select
+            name="priority"
+            value={formData.priority}
+            onChange={handleChange}
+          >
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Urgent">Urgent</option>
+          </select>
+        </div>
 
-        <input
-          type="date"
-          name="due_date"
-          value={formData.due_date}
-          onChange={handleChange}
-          style={{ padding: "10px" }}
-        />
+        <div className="split-grid">
+          <input
+            type="date"
+            name="due_date"
+            value={formData.due_date}
+            onChange={handleChange}
+          />
 
-        <input
-          type="number"
-          name="assigned_to"
-          placeholder="Assigned user ID"
-          value={formData.assigned_to}
-          onChange={handleChange}
-          style={{ padding: "10px" }}
-        />
+          <input
+            type="number"
+            name="assigned_to"
+            placeholder="Assigned user ID"
+            value={formData.assigned_to}
+            onChange={handleChange}
+          />
+        </div>
 
-        <button type="submit" style={{ padding: "12px", cursor: "pointer" }} disabled={submitting}>
-          {submitting ? "Creating..." : "Create Case"}
-        </button>
+        <div>
+          <button className="glow-button" type="submit" disabled={submitting}>
+            {submitting ? "Creating..." : "Create Case"}
+          </button>
+        </div>
       </form>
     </div>
   );

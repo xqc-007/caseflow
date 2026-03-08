@@ -6,9 +6,11 @@ const casesRoutes = require("./routes/cases");
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const authRoutes = require("./routes/auth");
 
 app.use(cors());
 app.use(express.json());
+app.use("/auth", authRoutes);
 
 app.use("/cases", casesRoutes);
 
@@ -19,6 +21,7 @@ app.get("/", (req, res) => {
 app.get("/hello", (req, res) => {
   res.send("hello route works");
 });
+
 
 app.get("/test-db", async (req, res) => {
   try {
