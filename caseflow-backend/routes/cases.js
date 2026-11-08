@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
+router.use(require("../middleware/auth"));
+
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM cases ORDER BY id DESC");
@@ -20,8 +22,9 @@ router.post("/", async (req, res) => {
     priority,
     due_date,
     assigned_to,
-    created_by,
   } = req.body;
+
+  const created_by = req.user.id;
 
   try {
     const caseResult = await pool.query(
@@ -99,7 +102,8 @@ router.get("/:id/notes", async (req, res) => {
 
 router.post("/:id/notes", async (req, res) => {
   const { id } = req.params;
-  const { user_id, note_text } = req.body;
+  const { note_text } = req.body || {};
+  const user_id = req.user.id;
 
   try {
     const result = await pool.query(
@@ -158,7 +162,7 @@ router.put("/:id", async (req, res) => {
          VALUES ($1, $2, $3, $4)`,
         [
           id,
-          updatedCase.created_by || null,
+          req.user.id,
           "status_changed",
           `Status changed from "${oldCase.status}" to "${updatedCase.status}".`,
         ]
@@ -171,7 +175,7 @@ router.put("/:id", async (req, res) => {
          VALUES ($1, $2, $3, $4)`,
         [
           id,
-          updatedCase.created_by || null,
+          req.user.id,
           "priority_changed",
           `Priority changed from "${oldCase.priority}" to "${updatedCase.priority}".`,
         ]
@@ -184,7 +188,7 @@ router.put("/:id", async (req, res) => {
          VALUES ($1, $2, $3, $4)`,
         [
           id,
-          updatedCase.created_by || null,
+          req.user.id,
           "assignment_changed",
           `Assigned user changed.`,
         ]

@@ -7,7 +7,9 @@ function ActivityTimeline({ caseId }) {
   const fetchActivity = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5001/cases/${caseId}/activity`);
+      const response = await fetch(`http://localhost:5001/cases/${caseId}/activity`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("caseflow_token")}` },
+      });
       const data = await response.json();
       setActivity(data);
     } catch (error) {

@@ -1,3 +1,7 @@
-
-caseflow-backend/.env
-caseflow-backend/node_modules/
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store

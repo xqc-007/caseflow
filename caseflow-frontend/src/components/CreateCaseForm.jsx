@@ -8,7 +8,6 @@ function CreateCaseForm({ onCaseCreated }) {
     priority: "Medium",
     due_date: "",
     assigned_to: "",
-    created_by: "1",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -36,7 +35,6 @@ function CreateCaseForm({ onCaseCreated }) {
         body: JSON.stringify({
           ...formData,
           assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
-          created_by: formData.created_by ? Number(formData.created_by) : null,
         }),
       });
 
@@ -51,7 +49,6 @@ function CreateCaseForm({ onCaseCreated }) {
         priority: "Medium",
         due_date: "",
         assigned_to: "",
-        created_by: "1",
       });
 
       onCaseCreated();

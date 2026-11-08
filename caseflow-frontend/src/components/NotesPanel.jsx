@@ -9,7 +9,9 @@ function NotesPanel({ caseId }) {
   const fetchNotes = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5001/cases/${caseId}/notes`);
+      const response = await fetch(`http://localhost:5001/cases/${caseId}/notes`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("caseflow_token")}` },
+      });
       const data = await response.json();
       setNotes(data);
     } catch (error) {
@@ -35,9 +37,9 @@ function NotesPanel({ caseId }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("caseflow_token")}`,
         },
         body: JSON.stringify({
-          user_id: 1,
           note_text: noteText,
         }),
       });

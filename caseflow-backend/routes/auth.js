@@ -4,10 +4,14 @@ const pool = require("../db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-const SECRET = "caseflow_secret";
+const { jwtSecret } = require("../config");
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
+  if (typeof email !== "string" || !email.trim() ||
+      typeof password !== "string" || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
 
   try {
     const result = await pool.query(
@@ -29,8 +33,8 @@ router.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      SECRET,
-      { expiresIn: "8h" }
+      jwtSecret,
+      { expiresIn: "8h", algorithm: "HS256" }
     );
 
     res.json({
