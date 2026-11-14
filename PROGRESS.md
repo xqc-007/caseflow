@@ -7,8 +7,9 @@ redesign, new Users/Reports modules or changes to other repositories.
 - [x] Replace hard-coded JWT secret with required environment configuration.
 - [x] Protect all case, note and activity routes; derive authorship from the signed-in user.
 - [x] Supply backend environment example, ignore private environment variants/build artefacts, and add authentication regression tests.
-- [ ] Add reproducible PostgreSQL schema/setup and explicit fictional-user provisioning.
-- [ ] Verify case creation, notes and changes against PostgreSQL; add request validation, missing-case responses and transactional activity writes.
+- [x] Add reproducible PostgreSQL schema/setup and explicit fictional-user provisioning.
+- [x] Verify successful case creation, notes and changes against PostgreSQL.
+- [ ] Add request validation, missing-case responses and transactional activity writes.
 - [ ] Verify frontend login/session expiry, errors, case refresh, notes/activity refresh, dashboard, search/filter/sort/pagination. Remove hard-coded API URLs and resolve hook warnings without changing the design.
 - [ ] Validate clean setup and full workflow, update documentation and capture screenshots if useful.
 
@@ -27,3 +28,27 @@ Next: create and test the schema and fictional-user setup from actual route SQL,
 then harden persistence/validation. Do not mark the project complete until clean
 setup and the existing workflows are verified. Users and Reports remain documented
 placeholders rather than expanding this project's scope.
+
+
+## 14 November 2026 — reproducible database setup
+
+Added a transaction-based, version-recorded initial migration for users, cases,
+notes and activity, with foreign keys, allowed status/priority values, timestamps
+and per-case history indexes. Setup is repeatable and serialized with a transaction
+advisory lock. It targets a fresh database; conflicting legacy tables fail and
+roll back without replacing legacy data. Added an explicit fictional demo-user
+command requiring a supplied password; reruns leave the account unchanged.
+
+Validation: all 10 existing backend tests pass. A separate opt-in PostgreSQL
+integration suite passes (7 subtests plus the parent test) against temporary local
+PostgreSQL 18.6. It covers repeatable schema setup, password validation/account
+preservation, CLI setup commands, actual login, case creation/list/update, note author joins, all five
+activity types, database constraints and atomic failure on conflicting tables.
+Test schemas are isolated and cleaned up; no external database was used. The
+normal test command skips this integration suite unless explicitly opted in.
+README now documents clean setup, provisioning and test commands.
+
+Next: request validation, 404 responses and transactional case/note/activity
+writes; then frontend session/errors/refresh and clean browser workflow checks.
+The UI was not changed in this increment. The earlier PostgreSQL-unavailable note
+above describes the first session only; real database validation is now available.

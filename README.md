@@ -21,13 +21,38 @@ Paste the generated random value into `JWT_SECRET` in `.env` and fill in the
 least 32 characters. Keep `.env` private. Changing the secret invalidates existing
 tokens; sign in again after upgrading from the former hard-coded secret.
 
-**Database setup is not yet reproducible:** this repository currently has no
-schema/migration or user provisioning script. An existing database with `users`,
-`cases`, `case_notes` and `case_activity` is required. Do not assume the prefilled
-login credentials correspond to an account in your database. Providing a clean
-schema and fictional-data setup is the next completion milestone.
+Create an **empty local database** named `caseflow` using your PostgreSQL tools
+(for example `createdb caseflow` with a local role authorised to create databases).
+Set `DB_NAME=caseflow` and the other `DB_*` values to match that database and role.
+Then, from `caseflow-backend`:
 
-Once that database is available, start the API from `caseflow-backend`:
+```sh
+npm run db:setup
+```
+
+This applies the versioned schema in one transaction and records it in
+`caseflow_migrations`. Re-running it preserves data. It is intended for a fresh
+database: if you already have unversioned CaseFlow tables, use a separate empty
+database. The script fails and rolls back on conflicting tables; it does not
+convert or replace legacy data.
+
+Optionally create a **fictional local demo account**. In Bash, enter a unique
+password privately (12+ characters, at most 72 UTF-8 bytes):
+
+```sh
+read -r -s -p "Demo password: " DEMO_PASSWORD
+export DEMO_PASSWORD
+npm run db:demo-user
+unset DEMO_PASSWORD
+```
+
+Sign in as `demo@example.test` with the password you entered. The script never
+prints or stores a plaintext password and does not reset an existing account.
+Replace the login form's prefilled values with these credentials; those prefilled
+values do not automatically create an account. No sample cases or real user data
+are inserted. Keep demo provisioning limited to local development.
+
+Start the API:
 
 ```sh
 npm run dev
@@ -54,9 +79,24 @@ npm run lint
 npm run build
 ```
 
-Backend tests exercise actual HTTP routes with a stubbed database; they do not
-validate PostgreSQL schema or persistence. Frontend lint currently passes with
-two existing hook dependency warnings in NotesPanel and ActivityTimeline.
+The default backend tests use a stubbed database. To run the separate PostgreSQL
+integration suite, create a **disposable database ending in `_test`**, for example
+`createdb caseflow_test`, then run from `caseflow-backend` with connection settings
+exported in your shell:
+
+```sh
+RUN_DB_TESTS=1 DB_NAME=caseflow_test npm run test:integration
+```
+
+Supply `DB_HOST`, `DB_PORT`, `DB_USER` and `DB_PASSWORD` in that shell as needed.
+The suite refuses a database name without the `_test` suffix, creates uniquely
+named schemas, and removes only those schemas afterwards. It checks repeatable
+schema/account setup, login and persisted case/note/activity flows, database
+constraints, and rollback on legacy table conflicts. Without `RUN_DB_TESTS=1`
+the integration test is skipped. It was verified with PostgreSQL 18.6.
+
+Frontend lint currently passes with two existing hook dependency warnings in
+NotesPanel and ActivityTimeline. Browser end-to-end testing remains outstanding.
 
 ## Authentication
 

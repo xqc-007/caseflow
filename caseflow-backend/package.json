@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "db:setup": "node scripts/setup-db.js",
+    "db:demo-user": "node scripts/create-demo-user.js",
+    "test:integration": "node --test integration/*.test.js"
   },
   "keywords": [],
   "author": "",
