@@ -93,6 +93,89 @@ test('PostgreSQL clean setup and existing HTTP workflows', { skip: process.env.R
       await setupDatabase();
       assert.equal((await request('/cases')).data.length, 1);
     });
+    await t.test('malformed case, note and update inputs return 400 without writing', async () => {
+      const before = await pool.query('SELECT (SELECT count(*) FROM cases) AS cases, (SELECT count(*) FROM case_notes) AS notes, (SELECT count(*) FROM case_activity) AS activity');
+      for (const body of [[], { title: ' ' }, { title: 1 }, { title: 'x', description: {} },
+        { title: 'x', status: 'invalid' }, { title: 'x', priority: null },
+        { title: 'x', assigned_to: -1 }, { title: 'x', assigned_to: [1] },
+        { title: 'x', due_date: '2026-02-30' }, { title: 'x', due_date: '0000-01-01' }]) {
+        assert.equal((await request('/cases', 'POST', body)).status, 400);
+      }
+      // An omitted description is optional, and a real leap day is accepted.
+      const minimal = await request('/cases', 'POST', { title: '  Minimal case  ', due_date: '2028-02-29' });
+      assert.equal(minimal.status, 201);
+      assert.equal(minimal.data.description, '');
+      assert.equal(minimal.data.title, 'Minimal case');
+      await pool.query('DELETE FROM cases WHERE id = $1', [minimal.data.id]);
+      for (const body of [{}, { status: null }, { priority: 'unknown' }, { assigned_to: true }, { assigned_to: '2147483648' }]) {
+        assert.equal((await request(`/cases/${caseId}`, 'PUT', body)).status, 400);
+      }
+      for (const body of [{}, { note_text: ' ' }, { note_text: 1 }]) {
+        assert.equal((await request(`/cases/${caseId}/notes`, 'POST', body)).status, 400);
+      }
+      const after = await pool.query('SELECT (SELECT count(*) FROM cases) AS cases, (SELECT count(*) FROM case_notes) AS notes, (SELECT count(*) FROM case_activity) AS activity');
+      assert.deepEqual(after.rows, before.rows);
+    });
+    await t.test('invalid IDs return 400 and missing cases return 404 consistently', async () => {
+      for (const id of ['0', '-1', 'abc', '1.2', '2147483648']) {
+        assert.equal((await request(`/cases/${id}/notes`)).status, 400);
+      }
+      for (const [route, method, body] of [
+        ['/cases/999999', 'PUT', { status: 'Closed' }],
+        ['/cases/999999/notes', 'GET'], ['/cases/999999/activity', 'GET'],
+        ['/cases/999999/notes', 'POST', { note_text: 'missing case' }]
+      ]) assert.equal((await request(route, method, body)).status, 404);
+      const empty = await request('/cases', 'POST', { title: 'Empty history case' });
+      assert.deepEqual((await request(`/cases/${empty.data.id}/notes`)).data, []);
+      await pool.query('DELETE FROM cases WHERE id = $1', [empty.data.id]);
+    });
+    await t.test('partial updates preserve omitted fields and reject unknown assignees without writes', async () => {
+      const updated = await request(`/cases/${caseId}`, 'PUT', { status: 'In Progress' });
+      assert.equal(updated.status, 200);
+      assert.equal(updated.data.priority, 'High');
+      assert.equal(updated.data.assigned_to, 1);
+      assert.equal((await request(`/cases/${caseId}`, 'PUT', { assigned_to: 999999 })).status, 400);
+      assert.equal((await pool.query('SELECT assigned_to FROM cases WHERE id = $1', [caseId])).rows[0].assigned_to, 1);
+      const cleared = await request(`/cases/${caseId}`, 'PUT', { assigned_to: '' });
+      assert.equal(cleared.status, 200);
+      assert.equal(cleared.data.assigned_to, null);
+    });
+    await t.test('activity failures roll back case creation, note insertion and all case changes', async () => {
+      const beforeCase = (await pool.query('SELECT * FROM cases WHERE id = $1', [caseId])).rows;
+      const counts = () => pool.query('SELECT (SELECT count(*) FROM cases) AS cases, (SELECT count(*) FROM case_notes) AS notes, (SELECT count(*) FROM case_activity) AS activity');
+      const beforeCounts = await counts();
+      await pool.query(`CREATE FUNCTION reject_test_activity() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.action_type IN ('case_created', 'note_added', 'priority_changed') THEN
+            RAISE EXCEPTION 'Synthetic activity failure';
+          END IF;
+          RETURN NEW;
+        END; $$`);
+      await pool.query('CREATE TRIGGER reject_test_activity BEFORE INSERT ON case_activity FOR EACH ROW EXECUTE FUNCTION reject_test_activity()');
+      try {
+        assert.equal((await request('/cases', 'POST', { title: 'Must roll back' })).status, 500);
+        assert.equal((await request(`/cases/${caseId}/notes`, 'POST', { note_text: 'Must roll back' })).status, 500);
+        assert.equal((await request(`/cases/${caseId}`, 'PUT', { status: 'Closed', priority: 'Low', assigned_to: 1 })).status, 500);
+        assert.deepEqual((await counts()).rows, beforeCounts.rows);
+        assert.deepEqual((await pool.query('SELECT * FROM cases WHERE id = $1', [caseId])).rows, beforeCase);
+      } finally { await pool.query('DROP TRIGGER reject_test_activity ON case_activity; DROP FUNCTION reject_test_activity()'); }
+    });
+    await t.test('concurrent changes record a continuous previous-status history', async () => {
+      const current = (await pool.query('SELECT status FROM cases WHERE id = $1', [caseId])).rows[0].status;
+      const start = (await pool.query('SELECT COALESCE(MAX(id), 0) AS id FROM case_activity')).rows[0].id;
+      const results = await Promise.all([
+        request(`/cases/${caseId}`, 'PUT', { status: 'Awaiting Response' }),
+        request(`/cases/${caseId}`, 'PUT', { status: 'Closed' })
+      ]);
+      assert.ok(results.every(result => result.status === 200));
+      const logs = (await pool.query("SELECT action_text FROM case_activity WHERE case_id = $1 AND id > $2 AND action_type = 'status_changed' ORDER BY id", [caseId, start])).rows;
+      assert.equal(logs.length, 2);
+      const first = /Status changed from "(.+)" to "(.+)"/.exec(logs[0].action_text);
+      const second = /Status changed from "(.+)" to "(.+)"/.exec(logs[1].action_text);
+      assert.equal(first[1], current);
+      assert.equal(first[2], second[1]);
+      assert.equal(second[2], (await pool.query('SELECT status FROM cases WHERE id = $1', [caseId])).rows[0].status);
+    });
     await t.test('schema enforces case values, nonblank notes and user references', async () => {
       await assert.rejects(pool.query("UPDATE cases SET status = 'invalid' WHERE id = $1", [caseId]), { code: '23514' });
       await assert.rejects(pool.query("INSERT INTO case_notes (case_id,note_text) VALUES ($1,'   ')", [caseId]), { code: '23514' });

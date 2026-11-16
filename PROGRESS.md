@@ -9,7 +9,7 @@ redesign, new Users/Reports modules or changes to other repositories.
 - [x] Supply backend environment example, ignore private environment variants/build artefacts, and add authentication regression tests.
 - [x] Add reproducible PostgreSQL schema/setup and explicit fictional-user provisioning.
 - [x] Verify successful case creation, notes and changes against PostgreSQL.
-- [ ] Add request validation, missing-case responses and transactional activity writes.
+- [x] Add request validation, missing-case responses and transactional activity writes.
 - [ ] Verify frontend login/session expiry, errors, case refresh, notes/activity refresh, dashboard, search/filter/sort/pagination. Remove hard-coded API URLs and resolve hook warnings without changing the design.
 - [ ] Validate clean setup and full workflow, update documentation and capture screenshots if useful.
 
@@ -52,3 +52,30 @@ Next: request validation, 404 responses and transactional case/note/activity
 writes; then frontend session/errors/refresh and clean browser workflow checks.
 The UI was not changed in this increment. The earlier PostgreSQL-unavailable note
 above describes the first session only; real database validation is now available.
+
+
+## 16 November 2026 — validated, atomic case writes
+
+Case/note inputs now validate before writes, including object shape, nonblank
+text, enum values, calendar dates and positive integer IDs. Invalid inputs return
+JSON 400 responses, missing cases return 404, and malformed/oversized JSON returns
+400/413. Optional descriptions default to empty text. Partial case updates preserve
+omitted fields; assignments accept existing IDs or null/empty string to clear.
+
+Case creation, note insertion and changes now use a single PostgreSQL transaction
+with their activity records. Updates lock the case row before reading previous
+values, preventing concurrent changes from recording stale transitions. Notes lock
+the parent against deletion during insertion. History reads have deterministic
+ordering for tied timestamps.
+
+Validation: 11 default backend tests pass (database suite explicitly skipped), and
+12 PostgreSQL integration subtests plus their parent pass against a temporary
+PostgreSQL 18.6 database. New tests cover invalid inputs with no side effects,
+invalid/missing IDs, empty existing history, partial updates, unknown assignees,
+forced activity failures rolling back cases/notes/updates (including earlier
+activity in the same update), and concurrent status-history consistency.
+No UI, schema or dependency changes in this increment. No open PRs or AGENTS.md
+were present on inspection; no other repositories were modified.
+
+Next: frontend configuration, session expiry, errors and data refresh, then clean
+browser workflow validation. The project is still in progress.

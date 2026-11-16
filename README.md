@@ -92,11 +92,29 @@ Supply `DB_HOST`, `DB_PORT`, `DB_USER` and `DB_PASSWORD` in that shell as needed
 The suite refuses a database name without the `_test` suffix, creates uniquely
 named schemas, and removes only those schemas afterwards. It checks repeatable
 schema/account setup, login and persisted case/note/activity flows, database
-constraints, and rollback on legacy table conflicts. Without `RUN_DB_TESTS=1`
+constraints, rollback on legacy table conflicts, validation/404 responses, write rollback on
+activity failures, and concurrent update history. Without `RUN_DB_TESTS=1`
 the integration test is skipped. It was verified with PostgreSQL 18.6.
 
 Frontend lint currently passes with two existing hook dependency warnings in
 NotesPanel and ActivityTimeline. Browser end-to-end testing remains outstanding.
+
+## Case API behaviour
+
+Case and note writes require JSON objects. Titles and notes must be nonblank;
+status and priority must match the interface options; due dates must be valid
+`YYYY-MM-DD` dates; IDs must be positive PostgreSQL integers. `assigned_to` can be
+an existing user's ID or `null`/an empty string to clear the assignment.
+
+Invalid requests return JSON errors with HTTP 400, unknown cases return 404,
+and oversized bodies return 413. An existing case with no notes returns an empty
+list. `PUT /cases/:id` accepts any combination of status, priority and assignment;
+omitted fields are preserved. Submitted author IDs are ignored.
+
+Each case creation, note insertion or case update commits together with its
+activity records. If activity fails, the whole write rolls back. Concurrent updates
+lock the case row so activity uses the actual previous values. Unexpected failures
+return a generic 500 response.
 
 ## Authentication
 

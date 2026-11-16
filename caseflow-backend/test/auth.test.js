@@ -10,6 +10,7 @@ const pool = require('../db');
 const app = require('../app');
 let server, base, calls, query;
 const originalQuery = pool.query;
+const originalConnect = pool.connect;
 const user = { id: 7, role: 'admin', full_name: 'Test User' };
 const token = () => jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '8h' });
 const request = (route, options = {}) => fetch(base + route, options);
@@ -18,6 +19,11 @@ const post = (body, auth) => ({ method: 'POST', headers: { 'Content-Type': 'appl
 before(async () => {
   user.password_hash = await bcrypt.hash('correct-password', 4);
   pool.query = async (...args) => { calls.push(args); return query(...args); };
+  pool.connect = async () => ({
+    query: async (sql, ...args) => ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)
+      ? { rows: [] } : pool.query(sql, ...args),
+    release() {}
+  });
   server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -26,6 +32,7 @@ beforeEach(() => { calls = []; query = async () => ({ rows: [] }); });
 after(async () => {
   await new Promise(resolve => server.close(resolve));
   pool.query = originalQuery;
+  pool.connect = originalConnect;
   await pool.end();
 });
 
@@ -102,8 +109,8 @@ test('note creation ignores spoofed author and records the signed-in actor', asy
   query = async () => ({ rows: [{ id: 1 }] });
   const res = await request('/cases/2/notes', post({ user_id: 999, note_text: 'Fictional note' }, token()));
   assert.equal(res.status, 201);
-  assert.equal(calls[0][1][1], 7);
   assert.equal(calls[1][1][1], 7);
+  assert.equal(calls[2][1][1], 7);
 });
 
 test('case changes attribute activity to the signed-in actor rather than the creator', async () => {
@@ -118,4 +125,15 @@ test('case changes attribute activity to the signed-in actor rather than the cre
   assert.equal(res.status, 200);
   assert.equal(calls.length, 5);
   for (const call of calls.slice(2)) assert.equal(call[1][1], 7);
+});
+
+test('malformed and oversized JSON return structured errors before database access', async () => {
+  for (const [body, status] of [['{', 400], [JSON.stringify({ title: 'x'.repeat(110000) }), 413]]) {
+    const response = await request('/cases', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` }, body
+    });
+    assert.equal(response.status, status);
+    assert.equal(typeof (await response.json()).error, 'string');
+  }
+  assert.equal(calls.length, 0);
 });
