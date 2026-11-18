@@ -1,29 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { apiRequest } from "../api";
+import { useList } from "../useList";
 
-function NotesPanel({ caseId }) {
-  const [notes, setNotes] = useState([]);
+function NotesPanel({ caseId, onNoteAdded }) {
+  const { data: notes, loading, error, retry } = useList(`/cases/${caseId}/notes`);
   const [noteText, setNoteText] = useState("");
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
-  const fetchNotes = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`http://localhost:5001/cases/${caseId}/notes`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("caseflow_token")}` },
-      });
-      const data = await response.json();
-      setNotes(data);
-    } catch (error) {
-      console.error("Failed to fetch notes:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotes();
-  }, [caseId]);
+  const [saveError, setSaveError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,26 +16,13 @@ function NotesPanel({ caseId }) {
     try {
       setSubmitting(true);
 
-      const response = await fetch(`http://localhost:5001/cases/${caseId}/notes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("caseflow_token")}`,
-        },
-        body: JSON.stringify({
-          note_text: noteText,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create note");
-      }
-
+      setSaveError("");
+      await apiRequest(`/cases/${caseId}/notes`, { method: "POST", body: { note_text: noteText } });
       setNoteText("");
-      fetchNotes();
+      retry();
+      onNoteAdded();
     } catch (error) {
-      console.error(error);
-      alert("Failed to add note");
+      setSaveError(error.message);
     } finally {
       setSubmitting(false);
     }
@@ -70,6 +40,7 @@ function NotesPanel({ caseId }) {
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         <textarea
+          aria-label="Case note"
           value={noteText}
           onChange={(e) => setNoteText(e.target.value)}
           placeholder="Add a note..."
@@ -99,9 +70,11 @@ function NotesPanel({ caseId }) {
         </button>
       </form>
 
+      {saveError && <p role="alert">{saveError}</p>}
+      {error && <div role="alert"><p>{error}</p><button onClick={retry}>Try again</button></div>}
       {loading ? (
         <p>Loading notes...</p>
-      ) : notes.length === 0 ? (
+      ) : error ? null : notes.length === 0 ? (
         <p style={{ color: "#6b7280" }}>No notes yet.</p>
       ) : (
         <div style={{ display: "grid", gap: "12px" }}>

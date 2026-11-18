@@ -1,8 +1,10 @@
 import { useState } from "react";
 
-function Login({ onLogin }) {
-  const [email, setEmail] = useState("admin@caseflow.com");
-  const [password, setPassword] = useState("password123");
+import { apiRequest } from "../api";
+
+function Login({ onLogin, message }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -12,20 +14,12 @@ function Login({ onLogin }) {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:5001/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const data = await apiRequest("/auth/login", {
+        auth: false, method: "POST", body: { email, password },
       });
-
-      if (!res.ok) {
-        throw new Error("Invalid credentials");
+      if (typeof data?.token !== "string" || !Number.isInteger(data?.user?.id)) {
+        throw new Error("CaseFlow returned an invalid sign-in response. Please try again.");
       }
-
-      const data = await res.json();
-
       localStorage.setItem("caseflow_token", data.token);
       localStorage.setItem("caseflow_user", JSON.stringify(data.user));
 
@@ -58,8 +52,12 @@ function Login({ onLogin }) {
             <h2>Sign in to CaseFlow</h2>
             <p>Access your internal workspace and continue managing cases.</p>
 
+            {message && <p role="status">{message}</p>}
             <form onSubmit={handleSubmit} className="form-grid">
               <input
+                type="email"
+                aria-label="Email"
+                autoComplete="username"
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -68,6 +66,8 @@ function Login({ onLogin }) {
 
               <input
                 type="password"
+                aria-label="Password"
+                autoComplete="current-password"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -78,7 +78,7 @@ function Login({ onLogin }) {
                 {loading ? "Signing in..." : "Login"}
               </button>
 
-              {error && <p style={{ color: "#ff8d8d", marginTop: 6 }}>{error}</p>}
+              {error && <p role="alert" style={{ color: "#ff8d8d", marginTop: 6 }}>{error}</p>}
             </form>
           </div>
         </div>

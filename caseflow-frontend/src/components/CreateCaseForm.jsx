@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { apiRequest } from "../api";
+
 function CreateCaseForm({ onCaseCreated }) {
   const [formData, setFormData] = useState({
     title: "",
@@ -10,6 +12,8 @@ function CreateCaseForm({ onCaseCreated }) {
     assigned_to: "",
   });
 
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
@@ -22,26 +26,14 @@ function CreateCaseForm({ onCaseCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setError("");
+    setMessage("");
 
     try {
-      const token = localStorage.getItem("caseflow_token");
-
-      const response = await fetch("http://localhost:5001/cases", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...formData,
-          assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
-        }),
+      await apiRequest("/cases", {
+        method: "POST", body: { ...formData, assigned_to: formData.assigned_to || null },
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create case");
-      }
-
+      setMessage("Case created.");
       setFormData({
         title: "",
         description: "",
@@ -53,8 +45,7 @@ function CreateCaseForm({ onCaseCreated }) {
 
       onCaseCreated();
     } catch (error) {
-      console.error(error);
-      alert("Failed to create case");
+      setError(error.message);
     } finally {
       setSubmitting(false);
     }
@@ -67,6 +58,8 @@ function CreateCaseForm({ onCaseCreated }) {
       </div>
       <h2 style={{ margin: "0 0 18px", letterSpacing: "-0.04em" }}>Create Case</h2>
 
+      {error && <p role="alert">{error}</p>}
+      {message && <p role="status">{message}</p>}
       <form onSubmit={handleSubmit} className="form-grid">
         <input
           type="text"

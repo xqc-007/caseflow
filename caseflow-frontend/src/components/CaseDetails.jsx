@@ -2,29 +2,33 @@ import { useState } from "react";
 import NotesPanel from "./NotesPanel";
 import ActivityTimeline from "./ActivityTimeline";
 
-function CaseDetails({ selectedCase, onBack }) {
+import { apiRequest } from "../api";
+
+function CaseDetails({ selectedCase, onBack, onCaseUpdated }) {
 
   const [status, setStatus] = useState(selectedCase.status);
   const [priority, setPriority] = useState(selectedCase.priority);
   const [assignedTo, setAssignedTo] = useState(selectedCase.assigned_to || "");
 
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [activityVersion, setActivityVersion] = useState(0);
+  const refreshActivity = () => setActivityVersion(version => version + 1);
+
   const updateCase = async () => {
-
-    const token = localStorage.getItem("caseflow_token");
-
-    await fetch(`http://localhost:5001/cases/${selectedCase.id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        status,
-        priority,
-        assigned_to: assignedTo || null
-      })
-    });
-
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await apiRequest(`/cases/${selectedCase.id}`, {
+        method: "PUT", body: { status, priority, assigned_to: assignedTo || null },
+      });
+      onCaseUpdated(updated);
+      refreshActivity();
+      setMessage("Case updated.");
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -46,9 +50,10 @@ function CaseDetails({ selectedCase, onBack }) {
 
       <div style={{display:"grid",gap:"12px",maxWidth:"300px"}}>
 
-        <label>Status</label>
+        <label htmlFor="case-status">Status</label>
 
         <select
+          id="case-status"
           value={status}
           onChange={(e)=>setStatus(e.target.value)}
         >
@@ -58,9 +63,10 @@ function CaseDetails({ selectedCase, onBack }) {
           <option>Closed</option>
         </select>
 
-        <label>Priority</label>
+        <label htmlFor="case-priority">Priority</label>
 
         <select
+          id="case-priority"
           value={priority}
           onChange={(e)=>setPriority(e.target.value)}
         >
@@ -70,22 +76,25 @@ function CaseDetails({ selectedCase, onBack }) {
           <option>Urgent</option>
         </select>
 
-        <label>Assigned User ID</label>
+        <label htmlFor="case-assigned">Assigned User ID</label>
 
         <input
+          id="case-assigned"
           type="number"
           value={assignedTo}
           onChange={(e)=>setAssignedTo(e.target.value)}
         />
 
-        <button onClick={updateCase}>
-          Update Case
+        <button onClick={updateCase} disabled={saving}>
+          {saving ? "Updating..." : "Update Case"}
         </button>
 
       </div>
 
-      <NotesPanel caseId={selectedCase.id} />
-      <ActivityTimeline caseId={selectedCase.id} />
+      {error && <p role="alert">{error}</p>}
+      {message && <p role="status">{message}</p>}
+      <NotesPanel caseId={selectedCase.id} onNoteAdded={refreshActivity} />
+      <ActivityTimeline caseId={selectedCase.id} refreshKey={activityVersion} />
 
     </div>
   );

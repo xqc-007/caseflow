@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import SummaryCards from "./components/SummaryCards";
@@ -9,8 +9,10 @@ import Login from "./components/Login";
 import CasesToolbar from "./components/CasesToolbar";
 import "./index.css";
 
+import { apiList, readSession, SESSION_EXPIRED } from "./api";
+
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(readSession);
   const [cases, setCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,47 +27,43 @@ function App() {
 
   const casesPerPage = 5;
 
-  const fetchCases = async () => {
+  const [sessionMessage, setSessionMessage] = useState("");
+  const fetchCases = useCallback(async (signal) => {
+    const token = localStorage.getItem("caseflow_token");
     try {
       setLoading(true);
       setError("");
-
-      const token = localStorage.getItem("caseflow_token");
-
-      const response = await fetch("http://localhost:5001/cases", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch cases");
-      }
-
-      const data = await response.json();
-      setCases(data);
+      const data = await apiList("/cases", { signal });
+      if (!signal?.aborted && localStorage.getItem("caseflow_token") === token) setCases(data);
     } catch (err) {
-      setError(err.message);
+      if (err.name !== "AbortError" && localStorage.getItem("caseflow_token") === token) setError(err.message);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("caseflow_user");
-
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
-      setLoading(false);
+      if (!signal?.aborted && localStorage.getItem("caseflow_token") === token) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchCases();
-    }
-  }, [user]);
+    const expired = () => {
+      setUser(null);
+      setCases([]);
+      setSelectedCase(null);
+      setSessionMessage("Your session has expired. Please sign in again.");
+    };
+    window.addEventListener(SESSION_EXPIRED, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED, expired);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const controller = new AbortController();
+    fetchCases(controller.signal);
+    return () => controller.abort();
+  }, [user, fetchCases]);
+
+  const handleCaseUpdated = (updated) => {
+    setCases(items => items.map(item => item.id === updated.id ? updated : item));
+    setSelectedCase(current => current?.id === updated.id ? updated : current);
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -104,26 +102,30 @@ function App() {
     return result;
   }, [cases, searchTerm, statusFilter, priorityFilter, sortBy]);
 
-  const indexOfLastCase = currentPage * casesPerPage;
-  const indexOfFirstCase = indexOfLastCase - casesPerPage;
-  const paginatedCases = filteredCases.slice(indexOfFirstCase, indexOfLastCase);
   const totalPages = Math.max(1, Math.ceil(filteredCases.length / casesPerPage));
+  const page = Math.min(currentPage, totalPages);
+  const indexOfFirstCase = (page - 1) * casesPerPage;
+  const paginatedCases = filteredCases.slice(indexOfFirstCase, indexOfFirstCase + casesPerPage);
 
   if (!user) {
-    return <Login onLogin={setUser} />;
+    return <Login message={sessionMessage} onLogin={(nextUser) => { setSessionMessage(""); setUser(nextUser); }} />;
   }
 
   return (
     <div className="premium-shell">
       <div className="premium-grid">
-        <Sidebar activeView={activeView} setActiveView={setActiveView} />
+        <Sidebar activeView={activeView} setActiveView={(view) => { setSelectedCase(null); setActiveView(view); }} />
 
         <main style={{ minWidth: 0, width: "100%" }}>
           <Header />
+          {loading && <p role="status">Loading cases...</p>}
+          {error && <div role="alert"><p>{error}</p><button onClick={() => fetchCases()}>Try again</button></div>}
 
           {selectedCase ? (
             <CaseDetails
+              key={selectedCase.id}
               selectedCase={selectedCase}
+              onCaseUpdated={handleCaseUpdated}
               onBack={() => setSelectedCase(null)}
             />
           ) : (
@@ -150,8 +152,6 @@ function App() {
                     setSortBy={setSortBy}
                   />
 
-                  {loading && <p>Loading cases...</p>}
-                  {error && <p style={{ color: "#ff8d8d" }}>{error}</p>}
                   {!loading && !error && filteredCases.length === 0 && (
                     <p>No matching cases found.</p>
                   )}
@@ -177,20 +177,20 @@ function App() {
                     >
                       <button
                         className="ghost-button"
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage((prev) => prev - 1)}
+                        disabled={page === 1}
+                        onClick={() => setCurrentPage(page - 1)}
                       >
                         Previous
                       </button>
 
                       <span style={{ color: "var(--muted)" }}>
-                        Page {currentPage} of {totalPages}
+                        Page {page} of {totalPages}
                       </span>
 
                       <button
                         className="ghost-button"
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage((prev) => prev + 1)}
+                        disabled={page === totalPages}
+                        onClick={() => setCurrentPage(page + 1)}
                       >
                         Next
                       </button>

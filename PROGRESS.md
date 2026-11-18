@@ -10,7 +10,8 @@ redesign, new Users/Reports modules or changes to other repositories.
 - [x] Add reproducible PostgreSQL schema/setup and explicit fictional-user provisioning.
 - [x] Verify successful case creation, notes and changes against PostgreSQL.
 - [x] Add request validation, missing-case responses and transactional activity writes.
-- [ ] Verify frontend login/session expiry, errors, case refresh, notes/activity refresh, dashboard, search/filter/sort/pagination. Remove hard-coded API URLs and resolve hook warnings without changing the design.
+- [x] Configure the frontend API URL; handle corrupt/expired sessions, API errors/retries and case/note/activity refresh; resolve hook warnings.
+- [ ] Verify dashboard, search/filter/sort/pagination and the full workflow in a real browser with PostgreSQL.
 - [ ] Validate clean setup and full workflow, update documentation and capture screenshots if useful.
 
 ## 8 November 2026 — authentication increment
@@ -79,3 +80,30 @@ were present on inspection; no other repositories were modified.
 
 Next: frontend configuration, session expiry, errors and data refresh, then clean
 browser workflow validation. The project is still in progress.
+
+
+## 18 November 2026 — frontend sessions and refresh
+
+Added one configurable API client (`VITE_API_URL`, defaulting to localhost:5001),
+consistent JSON/network errors, array-response validation and authenticated request
+headers. Corrupt/incomplete storage returns to sign-in; API 401 clears the session
+and case data with an explanation. Delayed 401 responses from old tokens cannot
+clear a newer session. Login fields no longer contain presumed default credentials.
+
+Writes show progress, success/error feedback and preserve unsaved fields on
+failure. Saved case changes update the parent list and dashboard; notes and case
+changes refresh activity. Notes/activity reads support retry and cancel stale
+requests when unmounted. Sidebar navigation exits case details predictably, and
+pagination clamps to available pages when refreshed results shrink. Added accessible
+names/label associations for touched controls. Existing layout and CSS preserved.
+
+Validation: eight Vitest/Testing Library DOM interaction tests pass with mocked
+API responses; frontend lint passes with zero warnings and production build passes.
+Browser-runner execution was attempted but local Chromium launch is restricted by
+the environment; the browser download also failed. The verified test suite uses
+jsdom rather than claiming browser coverage. No backend or database changes in
+this increment. No AGENTS.md or open PRs found on current inspection.
+
+Next: clean real browser/API/PostgreSQL workflow, dashboard and filter/sort/pagination
+checks, review remaining rough edges and final documentation. Do not mark the
+project complete or stop the task until that validation is done.

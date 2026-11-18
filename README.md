@@ -7,7 +7,7 @@ and pagination. Users and Reports screens are placeholders, not completed featur
 
 ## Local development
 
-Use Node.js 22.12+ (or a supported newer version) and PostgreSQL.
+Use Node.js 24.15 or later in the 24.x series (tested with 24.22.1) and PostgreSQL.
 
 ```sh
 cd caseflow-backend
@@ -48,8 +48,7 @@ unset DEMO_PASSWORD
 
 Sign in as `demo@example.test` with the password you entered. The script never
 prints or stores a plaintext password and does not reset an existing account.
-Replace the login form's prefilled values with these credentials; those prefilled
-values do not automatically create an account. No sample cases or real user data
+The login form starts empty; enter those credentials manually. No sample cases or real user data
 are inserted. Keep demo provisioning limited to local development.
 
 Start the API:
@@ -66,8 +65,11 @@ npm ci
 npm run dev
 ```
 
-The frontend currently targets `http://localhost:5001`. Keep the API's `PORT=5001`
-for this setup. Use the frontend URL printed by Vite.
+The frontend defaults to `http://localhost:5001`. To use another API address,
+copy `caseflow-frontend/.env.example` to `caseflow-frontend/.env` and set
+`VITE_API_URL`. Restart Vite or rebuild after changing it. This value is public
+frontend configuration; never put secrets in a `VITE_*` variable. Use the frontend
+URL printed by Vite.
 
 ## Checks
 
@@ -75,6 +77,7 @@ for this setup. Use the frontend URL printed by Vite.
 cd caseflow-backend
 npm test
 cd ../caseflow-frontend
+npm test
 npm run lint
 npm run build
 ```
@@ -96,8 +99,17 @@ constraints, rollback on legacy table conflicts, validation/404 responses, write
 activity failures, and concurrent update history. Without `RUN_DB_TESTS=1`
 the integration test is skipped. It was verified with PostgreSQL 18.6.
 
-Frontend lint currently passes with two existing hook dependency warnings in
-NotesPanel and ActivityTimeline. Browser end-to-end testing remains outstanding.
+Frontend `npm test` runs eight DOM-based interaction tests with mocked API
+responses. They cover configured API requests, corrupt-session recovery, HTTP 401
+session expiry, retries, case/note saves, activity refresh, list/dashboard updates,
+and a delayed rejection from an older session. These tests do not launch a browser
+or connect to PostgreSQL. Lint passes without warnings and the production build
+passes. A full browser-to-API-to-database clean-setup check remains outstanding.
+
+API errors appear beside the affected content with retries for failed reads.
+Failed writes keep form values available for correction. Successful writes refresh
+the relevant views. Rejected sessions clear stored login data and return to sign-in
+with an explanation. The backend remains the authority on token validity.
 
 ## Case API behaviour
 

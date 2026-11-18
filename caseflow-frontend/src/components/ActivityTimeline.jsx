@@ -1,27 +1,7 @@
-import { useEffect, useState } from "react";
+import { useList } from "../useList";
 
-function ActivityTimeline({ caseId }) {
-  const [activity, setActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchActivity = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`http://localhost:5001/cases/${caseId}/activity`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("caseflow_token")}` },
-      });
-      const data = await response.json();
-      setActivity(data);
-    } catch (error) {
-      console.error("Failed to fetch activity:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchActivity();
-  }, [caseId]);
+function ActivityTimeline({ caseId, refreshKey }) {
+  const { data: activity, loading, error, retry } = useList(`/cases/${caseId}/activity`, refreshKey);
 
   return (
     <div
@@ -33,9 +13,10 @@ function ActivityTimeline({ caseId }) {
     >
       <h3 style={{ marginBottom: "16px" }}>Activity Timeline</h3>
 
+      {error && <div role="alert"><p>{error}</p><button onClick={retry}>Try again</button></div>}
       {loading ? (
         <p>Loading activity...</p>
-      ) : activity.length === 0 ? (
+      ) : error ? null : activity.length === 0 ? (
         <p style={{ color: "#6b7280" }}>No activity yet.</p>
       ) : (
         <div style={{ display: "grid", gap: "14px" }}>
