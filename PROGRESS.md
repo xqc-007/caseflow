@@ -11,8 +11,8 @@ redesign, new Users/Reports modules or changes to other repositories.
 - [x] Verify successful case creation, notes and changes against PostgreSQL.
 - [x] Add request validation, missing-case responses and transactional activity writes.
 - [x] Configure the frontend API URL; handle corrupt/expired sessions, API errors/retries and case/note/activity refresh; resolve hook warnings.
-- [ ] Verify dashboard, search/filter/sort/pagination and the full workflow in a real browser with PostgreSQL.
-- [ ] Validate clean setup and full workflow, update documentation and capture screenshots if useful.
+- [x] Verify dashboard, search/filter/sort/pagination and the full workflow in a real browser with PostgreSQL.
+- [x] Validate clean setup and full workflow; update documentation. Screenshots were optional and not needed for the unchanged design.
 
 ## 8 November 2026 — authentication increment
 
@@ -107,3 +107,34 @@ this increment. No AGENTS.md or open PRs found on current inspection.
 Next: clean real browser/API/PostgreSQL workflow, dashboard and filter/sort/pagination
 checks, review remaining rough edges and final documentation. Do not mark the
 project complete or stop the task until that validation is done.
+
+
+## 20 November 2026 — scoped completion
+
+Added regression coverage for dashboard totals, case-insensitive search, combined
+status/priority filters, priority/status sorting, empty search results, page controls
+and clamping after the final filtered result on a page is closed. Added a reusable,
+explicitly opted-in browser verification runner using a disposable `_test` database
+and installed Chromium. It builds into a temporary directory, starts local servers,
+creates a fresh schema and fictional account, runs real browser/API/database flows,
+and cleans up the servers, build and schema. No user data or other repositories
+were touched. Existing UI and product scope are unchanged.
+
+Final validation passed:
+- Clean `npm ci` in backend and frontend.
+- 11 backend default tests (database suite skipped in the default command).
+- 12 PostgreSQL integration checks plus their parent test against PostgreSQL 18.6.
+- 10 DOM interaction tests.
+- Frontend lint with zero warnings and production build.
+- Real headless Chromium against the built app, actual Express API and PostgreSQL:
+  login, case creation, status/priority changes, note and activity persistence,
+  dashboard totals, reload persistence, search/combined filters/sort/pagination,
+  invalid-session rejection and sign-in recovery. No mocked browser API requests
+  or browser runtime errors. The previous browser-launch blocker was resolved by
+  using a compatible headless Chromium build.
+
+No open PRs or AGENTS.md were found; the repository was current before changes.
+The agreed existing local-demo scope is complete. Users/Reports modules, production
+hosting, production security operations and new features were not part of this
+completion scope. No further recurring changes are needed; stop the Caseflow task
+rather than invent additional work.

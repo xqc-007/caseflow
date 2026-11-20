@@ -5,6 +5,10 @@ The existing interface includes login, case creation, status/priority/assignment
 updates, notes, activity history, dashboard summaries, search, filtering, sorting
 and pagination. Users and Reports screens are placeholders, not completed features.
 
+The existing local-demo scope is complete and verified as of 20 November 2026.
+Users and Reports remain explicitly out-of-scope placeholders. This is not a
+production deployment or a claim of production readiness.
+
 ## Local development
 
 Use Node.js 24.15 or later in the 24.x series (tested with 24.22.1) and PostgreSQL.
@@ -99,12 +103,31 @@ constraints, rollback on legacy table conflicts, validation/404 responses, write
 activity failures, and concurrent update history. Without `RUN_DB_TESTS=1`
 the integration test is skipped. It was verified with PostgreSQL 18.6.
 
-Frontend `npm test` runs eight DOM-based interaction tests with mocked API
+Frontend `npm test` runs ten DOM-based interaction tests with mocked API
 responses. They cover configured API requests, corrupt-session recovery, HTTP 401
 session expiry, retries, case/note saves, activity refresh, list/dashboard updates,
-and a delayed rejection from an older session. These tests do not launch a browser
-or connect to PostgreSQL. Lint passes without warnings and the production build
-passes. A full browser-to-API-to-database clean-setup check remains outstanding.
+a delayed rejection from an older session, dashboard counts, combined filters,
+sorting and pagination after result counts shrink. These tests do not launch a
+browser or connect to PostgreSQL. Lint passes without warnings and the production
+build passes.
+
+The full browser-to-API-to-PostgreSQL workflow also passes. To reproduce it,
+install dependencies in both packages, provide the same disposable `_test`
+database/connection settings described above, and run from `caseflow-frontend`:
+
+```sh
+RUN_BROWSER_TESTS=1 DB_NAME=caseflow_test BROWSER_EXECUTABLE_PATH=/absolute/path/to/chromium npm run test:browser
+```
+
+Supply an installed Chromium executable; `playwright-core` does not download one.
+The runner builds the app into a temporary directory, starts temporary local API
+and preview servers, and checks login, creation, updates, notes/activity, dashboard,
+persistence after reload, search/filter/sort/pagination and rejected-session
+recovery. It creates/removes only its uniquely named database schema and removes
+its temporary build afterwards. `BROWSER_ARGS_JSON` optionally accepts a JSON
+array of launch arguments for a compatible headless build. The verification here
+used real headless Chromium with a temporary PostgreSQL 18.6 instance; browser
+requests were not mocked.
 
 API errors appear beside the affected content with retries for failed reads.
 Failed writes keep form values available for correction. Successful writes refresh

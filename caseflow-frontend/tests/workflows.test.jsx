@@ -150,3 +150,67 @@ test('a delayed 401 from an old token cannot clear a newer session', async () =>
   await expect(request).rejects.toThrow('session has expired');
   expect(localStorage.getItem('caseflow_token')).toBe('new-token');
 });
+
+test('dashboard counts and combined search/status/priority filters match a multi-page dataset', async () => {
+  const { state, ui } = setup();
+  state.cases = Array.from({ length: 12 }, (_, index) => ({
+    ...initial, id: index + 1, title: `Fictional case ${String(index).padStart(2, '0')}`,
+    status: ['New', 'Closed', 'In Progress'][index % 3],
+    priority: ['Urgent', 'High', 'Low', 'Medium'][index % 4],
+    created_at: `2026-01-${String(index + 1).padStart(2, '0')}`,
+  }));
+  render(<App />);
+  await waitFor(() => expect(screen.queryByText('Loading cases...')).toBeNull());
+  for (const [label, total] of [['Total Cases', '12'], ['Open Cases', '8'], ['High Priority', '6'], ['Closed Cases', '4']]) {
+    expect(within(screen.getByText(label).closest('.metric-card')).getByRole('heading').textContent).toBe(total);
+  }
+  await ui.click(screen.getByRole('button', { name: 'Cases', exact: true }));
+  expect(screen.getByText('Page 1 of 3')).toBeTruthy();
+  expect(document.querySelector('.list-card h3').textContent).toBe('Fictional case 11');
+  expect(screen.getByRole('button', { name: 'Previous' }).disabled).toBe(true);
+  await ui.click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByText('Page 2 of 3')).toBeTruthy();
+  await ui.type(screen.getByPlaceholderText('Search cases...'), 'CASE 00');
+  expect(screen.getByText('Page 1 of 1')).toBeTruthy();
+  expect(document.querySelectorAll('.list-card')).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Next' }).disabled).toBe(true);
+  await ui.clear(screen.getByPlaceholderText('Search cases...'));
+  const [status, priority, sort] = screen.getAllByRole('combobox');
+  await ui.selectOptions(status, 'New');
+  await ui.selectOptions(priority, 'Urgent');
+  expect(document.querySelectorAll('.list-card')).toHaveLength(1);
+  expect(document.querySelector('.list-card h3').textContent).toBe('Fictional case 00');
+  await ui.selectOptions(status, 'All');
+  await ui.selectOptions(priority, 'All');
+  await ui.selectOptions(sort, 'priority');
+  expect([...document.querySelectorAll('.list-card h3')].slice(0, 3).map(item => item.textContent)).toEqual([
+    'Fictional case 00', 'Fictional case 04', 'Fictional case 08',
+  ]);
+  await ui.selectOptions(sort, 'status');
+  expect(document.querySelectorAll('.list-card .badge-status-closed')).toHaveLength(4);
+  await ui.type(screen.getByPlaceholderText('Search cases...'), 'no-such-case');
+  expect(screen.getByText('No matching cases found.')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+});
+
+test('closing the last case on a filtered final page clamps pagination to remaining results', async () => {
+  const { state, ui } = setup();
+  // Put ID 1 last in newest order so the existing update mock handles that case.
+  state.cases = Array.from({ length: 6 }, (_, index) => ({
+    ...initial, id: index + 1, title: `Case ${index + 1}`, created_at: `2026-01-${String(index + 1).padStart(2, '0')}`,
+  }));
+  render(<App />);
+  await ui.click(screen.getByRole('button', { name: 'Cases', exact: true }));
+  await screen.findByText('Page 1 of 2');
+  await ui.selectOptions(screen.getAllByRole('combobox')[0], 'New');
+  await ui.click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByText('Page 2 of 2')).toBeTruthy();
+  await ui.click(screen.getByRole('button', { name: 'View Case' }));
+  await ui.selectOptions(screen.getByLabelText('Status', { exact: true }), 'Closed');
+  await ui.click(screen.getByRole('button', { name: 'Update Case', exact: true }));
+  await screen.findByText('Case updated.');
+  await ui.click(screen.getByRole('button', { name: 'Back to Cases' }));
+  expect(screen.getByText('Page 1 of 1')).toBeTruthy();
+  expect(document.querySelectorAll('.list-card')).toHaveLength(5);
+  expect(screen.getByRole('button', { name: 'Next' }).disabled).toBe(true);
+});
